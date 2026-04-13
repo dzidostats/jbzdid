@@ -16,7 +16,7 @@ results_404 = []
 queue = asyncio.Queue()
 
 # -----------------------------
-# PODZIAŁ ZAKRESU (10 JOBÓW)
+# PODZIAŁ ZAKRESU (20 JOBÓW)
 # -----------------------------
 TOTAL = 2000000
 PARTS = int(os.getenv("PARTS", "1"))
