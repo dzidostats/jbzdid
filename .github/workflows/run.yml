@@ -55,18 +55,47 @@ jobs:
           path: results
           merge-multiple: true
 
-      - name: Move files into repo root
+      - name: Merge JSON files
+        shell: python
         run: |
-          cp results/**/*.json . 2>/dev/null || true
+          import json
+          from pathlib import Path
 
-      - name: Commit results
+          def merge(pattern):
+              merged = []
+              for file in Path("results").rglob(pattern):
+                  try:
+                      with open(file, "r", encoding="utf-8") as f:
+                          data = json.load(f)
+
+                          if isinstance(data, list):
+                              merged.extend(data)
+                          else:
+                              merged.append(data)
+
+                  except Exception as e:
+                      print(f"Skipping {file}: {e}")
+
+              return merged
+
+          # merge 200
+          data_200 = merge("200_*.json")
+          with open("200.json", "w", encoding="utf-8") as f:
+              json.dump(data_200, f, ensure_ascii=False)
+
+          # merge 404 -> 400
+          data_400 = merge("404_*.json")
+          with open("400.json", "w", encoding="utf-8") as f:
+              json.dump(data_400, f, ensure_ascii=False)
+
+      - name: Commit merged results
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          git add *.json
+          git add 200.json 400.json
 
           git diff --cached --quiet && echo "No changes to commit" && exit 0
 
-          git commit -m "Add scraper results (20 parts)"
+          git commit -m "Merge scraper results (200 + 400)"
           git push
