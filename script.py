@@ -18,7 +18,7 @@ queue = asyncio.Queue()
 # -----------------------------
 # PODZIAŁ ZAKRESU (20 JOBÓW)
 # -----------------------------
-TOTAL = 2000000
+TOTAL = 1300000
 PARTS = int(os.getenv("PARTS", "1"))
 PART = int(os.getenv("PART", "0"))
 
