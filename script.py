@@ -10,15 +10,13 @@ HEADERS = {"User-Agent": "Mozilla/5.0"}
 
 CONCURRENCY = 2
 
-results_200 = []
-results_404 = []
+active_true = []
+active_false = []
+banned = []
 
 queue = asyncio.Queue()
 
-# -----------------------------
-# PODZIAŁ ZAKRESU (20 JOBÓW)
-# -----------------------------
-TOTAL = 1300000
+TOTAL = 1000
 PARTS = int(os.getenv("PARTS", "1"))
 PART = int(os.getenv("PART", "0"))
 
@@ -30,7 +28,6 @@ end = (PART + 1) * chunk
 for i in range(start, end):
     queue.put_nowait(i)
 
-# -----------------------------
 
 async def worker(session):
     while True:
@@ -41,14 +38,30 @@ async def worker(session):
 
         try:
             async with session.get(BASE_URL.format(user_id), headers=HEADERS) as r:
-                status = r.status
+                if r.status != 200:
+                    print(f"ID {user_id} -> {r.status}")
+                    continue
 
-                print(f"ID {user_id} -> {status}")
+                data = await r.json()
+                user = data.get("user", {})
 
-                if status == 200:
-                    results_200.append(user_id)
-                elif status == 404:
-                    results_404.append(user_id)
+                uid = user.get("id", user_id)
+                is_active = user.get("active")
+                is_banned = user.get("banned")
+
+                print(f"ID {uid} -> active={is_active}, banned={is_banned}")
+
+                item = {"id": uid}
+
+                # 🔥 BAN
+                if is_banned:
+                    banned.append(item)
+
+                # 🔥 ACTIVE TRUE / FALSE
+                if is_active is True:
+                    active_true.append(item)
+                elif is_active is False:
+                    active_false.append(item)
 
         except Exception as e:
             print("Błąd:", user_id, e)
@@ -66,17 +79,20 @@ async def main():
         workers = [worker(session) for _ in range(CONCURRENCY)]
         await asyncio.gather(*workers)
 
-    # zapis per job (żeby się nie nadpisywało)
     part = PART
 
-    with open(f"200_{part}.json", "w") as f:
-        json.dump(results_200, f, indent=2)
+    with open(f"active_true_{part}.json", "w") as f:
+        json.dump(active_true, f, indent=2)
 
-    with open(f"404_{part}.json", "w") as f:
-        json.dump(results_404, f, indent=2)
+    with open(f"active_false_{part}.json", "w") as f:
+        json.dump(active_false, f, indent=2)
 
-    print("200:", len(results_200))
-    print("404:", len(results_404))
+    with open(f"banned_{part}.json", "w") as f:
+        json.dump(banned, f, indent=2)
+
+    print("active_true:", len(active_true))
+    print("active_false:", len(active_false))
+    print("banned:", len(banned))
     print("Czas:", time.time() - start_time)
 
 
