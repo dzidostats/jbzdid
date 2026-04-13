@@ -10,9 +10,10 @@ HEADERS = {"User-Agent": "Mozilla/5.0"}
 
 CONCURRENCY = 2
 
-active_true = []
-active_false = []
+active = []
+noactive = []
 banned = []
+not_found = []
 
 queue = asyncio.Queue()
 
@@ -23,7 +24,7 @@ PART = int(os.getenv("PART", "0"))
 chunk = TOTAL // PARTS
 
 start = PART * chunk + 1
-end = (PART + 1) * chunk
+end = (PART + 1) * chunk if PART != PARTS - 1 else TOTAL + 1
 
 for i in range(start, end):
     queue.put_nowait(i)
@@ -38,6 +39,11 @@ async def worker(session):
 
         try:
             async with session.get(BASE_URL.format(user_id), headers=HEADERS) as r:
+
+                if r.status == 404:
+                    not_found.append({"id": user_id})
+                    continue
+
                 if r.status != 200:
                     print(f"ID {user_id} -> {r.status}")
                     continue
@@ -49,24 +55,19 @@ async def worker(session):
                 is_active = user.get("active")
                 is_banned = user.get("banned")
 
-                print(f"ID {uid} -> active={is_active}, banned={is_banned}")
-
                 item = {"id": uid}
 
-                # 🔥 BAN
                 if is_banned:
                     banned.append(item)
-
-                # 🔥 ACTIVE TRUE / FALSE
-                if is_active is True:
-                    active_true.append(item)
+                elif is_active is True:
+                    active.append(item)
                 elif is_active is False:
-                    active_false.append(item)
+                    noactive.append(item)
 
         except Exception as e:
             print("Błąd:", user_id, e)
 
-        await asyncio.sleep(random.uniform(0.12, 0.12))
+        await asyncio.sleep(0.12)
         queue.task_done()
 
 
@@ -81,19 +82,19 @@ async def main():
 
     part = PART
 
-    with open(f"active_true_{part}.json", "w") as f:
-        json.dump(active_true, f, indent=2)
+    with open(f"active_{part}.json", "w") as f:
+        json.dump(active, f, indent=2)
 
-    with open(f"active_false_{part}.json", "w") as f:
-        json.dump(active_false, f, indent=2)
+    with open(f"noactive_{part}.json", "w") as f:
+        json.dump(noactive, f, indent=2)
 
     with open(f"banned_{part}.json", "w") as f:
         json.dump(banned, f, indent=2)
 
-    print("active_true:", len(active_true))
-    print("active_false:", len(active_false))
-    print("banned:", len(banned))
-    print("Czas:", time.time() - start_time)
+    with open(f"not_found_{part}.json", "w") as f:
+        json.dump(not_found, f, indent=2)
+
+    print("DONE")
 
 
 asyncio.run(main())
